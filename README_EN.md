@@ -34,14 +34,19 @@
   />
 </picture>
 
+## Design Philosophy
+
+No database, no server, zero-cost one-click deployment, ready to use out of the box, yet capable of manipulating and saving data like a database.
+
+Easy to use, simple, and powerful.
+
+[Who is using it?](https://official.nav3.cn/?id=3)
+
 ## Features
-
-Three No-Needs: `No Database`, `No Server`, `No Cost`
-
-The philosophy of `Discovery Navigation` is to create a simple and convenient solution without relying on backend services, eliminating complex configurations and database concepts, making it ready to use out of the box.
 
 - 🍰 Built-in `800+` high-quality websites
 - 🍰 Support for [Gitee](https://gitee.com/xiejiahe/nav)
+- 🍰 Support for [GitLab](https://gitlab.com/xjh22222228/nav)
 - 🍰 Support for importing from browser bookmarks
 - 🍰 Support for exporting data to browser bookmarks
 - 🍰 Support for AI translation
@@ -106,6 +111,10 @@ build path `dist/browser`
 #### Vercel (Recommended, Free)
 
 [https://github.com/apps/vercel](https://github.com/apps/vercel)
+
+#### Cloudflare pages (Recommended, Free)
+
+[https://www.cloudflare.com](https://www.cloudflare.com)
 
 ## Configuration
 

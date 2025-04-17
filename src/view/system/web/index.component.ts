@@ -17,7 +17,7 @@ import {
   searchEngineList,
   tagList,
   internal,
-  components,
+  component,
 } from 'src/store'
 import { isLogin, removeWebsite } from 'src/utils/user'
 import { NzMessageService } from 'ng-zorro-antd/message'
@@ -46,6 +46,7 @@ import { TagListComponent } from 'src/components/tag-list/index.component'
 import { CommonService } from 'src/services/common'
 import event from 'src/utils/mitt'
 import config from '../../../../nav.config.json'
+import { cleanWebAttrs } from 'src/utils/pureUtils'
 
 @Component({
   standalone: true,
@@ -214,19 +215,29 @@ export default class WebpComponent {
       case 0:
       case 1:
       case 2:
-        await this.commonService.deleteClassByIds([...this.setOfCheckedId])
+        event.emit('DELETE_MODAL', {
+          ids: [...this.setOfCheckedId],
+          isClass: true,
+          onComplete: () => {
+            this.onTabChange()
+          },
+        })
         break
 
       case 3:
-        const ok = await this.commonService.deleteWebByIds([
-          ...this.setOfCheckedId,
-        ])
-        if (ok && this.errorWebs.length) {
-          this.getErrorWebs()
-        }
+        event.emit('DELETE_MODAL', {
+          ids: [...this.setOfCheckedId],
+          ok: () => {
+            if (this.errorWebs.length) {
+              this.getErrorWebs()
+            }
+          },
+          onComplete: () => {
+            this.onTabChange()
+          },
+        })
         break
     }
-    this.onTabChange()
   }
 
   handleReset() {
@@ -235,7 +246,7 @@ export default class WebpComponent {
       nzContent: $t('_warnReset'),
       nzOnOk: () => {
         this.message.success($t('_actionSuccess'))
-        window.localStorage.removeItem(STORAGE_KEY_MAP.s_url)
+        window.localStorage.removeItem(STORAGE_KEY_MAP.DATE_TIME)
         removeWebsite().finally(() => {
           window.location.reload()
         })
@@ -249,7 +260,7 @@ export default class WebpComponent {
       settings,
       tag: tagList,
       search: searchEngineList,
-      component: components,
+      component,
     }
     for (const k in params) {
       saveAs(
@@ -519,7 +530,9 @@ export default class WebpComponent {
 
         updateFileContent({
           message: 'update db',
-          content: JSON.stringify(this.websiteList),
+          content: JSON.stringify(
+            cleanWebAttrs(JSON.parse(JSON.stringify(this.websiteList)))
+          ),
           path: DB_PATH,
         })
           .then(() => {

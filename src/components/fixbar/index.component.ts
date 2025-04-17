@@ -4,18 +4,19 @@
 
 import { Component, Output, EventEmitter, Input } from '@angular/core'
 import { CommonModule } from '@angular/common'
-import { isDark as isDarkFn, randomBgImg, queryString } from 'src/utils'
+import { isDark as isDarkFn } from 'src/utils'
 import { NzModalService } from 'ng-zorro-antd/modal'
 import { NzMessageService } from 'ng-zorro-antd/message'
 import { isLogin } from 'src/utils/user'
 import { updateFileContent } from 'src/api'
 import { websiteList, settings } from 'src/store'
 import { DB_PATH, STORAGE_KEY_MAP } from 'src/constants'
-import { Router, ActivatedRoute } from '@angular/router'
+import { Router } from '@angular/router'
 import { $t, getLocale } from 'src/locale'
 import { addDark, removeDark } from 'src/utils/utils'
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown'
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip'
+import { cleanWebAttrs } from 'src/utils/pureUtils'
 import mitt from 'src/utils/mitt'
 
 @Component({
@@ -42,7 +43,7 @@ export class FixbarComponent {
   syncLoading = false
   isShowFace = true
   entering = false
-  open = localStorage.getItem(STORAGE_KEY_MAP.fixbarOpen) === 'true'
+  open = localStorage.getItem(STORAGE_KEY_MAP.FIXBAR_OPEN) === 'true'
   themeList = [
     {
       name: $t('_switchTo') + ' Super',
@@ -73,8 +74,7 @@ export class FixbarComponent {
   constructor(
     private message: NzMessageService,
     private modal: NzModalService,
-    private router: Router,
-    private activatedRoute: ActivatedRoute
+    private router: Router
   ) {
     if (this.isDark) {
       addDark()
@@ -110,16 +110,13 @@ export class FixbarComponent {
     }
   }
 
-  ngOnInit() {}
-
   toggleTheme(theme: any) {
     this.router.navigate([theme.url], {
       queryParams: {
-        ...queryString(),
         _: Date.now(),
       },
+      queryParamsHandling: 'merge',
     })
-    this.removeBackground()
   }
 
   goTop() {
@@ -141,26 +138,18 @@ export class FixbarComponent {
     this.onCollapse.emit()
   }
 
-  removeBackground() {
-    const el = document.getElementById('random-light-bg')
-    el?.parentNode?.removeChild?.(el)
-  }
-
   toggleMode() {
     this.isDark = !this.isDark
     mitt.emit('EVENT_DARK', this.isDark)
     window.localStorage.setItem(
-      STORAGE_KEY_MAP.isDark,
+      STORAGE_KEY_MAP.IS_DARK,
       String(Number(this.isDark))
     )
 
     if (this.isDark) {
       addDark()
-      this.removeBackground()
     } else {
       removeDark()
-      const { data } = this.activatedRoute.snapshot
-      data['renderLinear'] && randomBgImg()
     }
   }
 
@@ -171,7 +160,7 @@ export class FixbarComponent {
 
   handleOpen() {
     this.open = !this.open
-    localStorage.setItem(STORAGE_KEY_MAP.fixbarOpen, String(this.open))
+    localStorage.setItem(STORAGE_KEY_MAP.FIXBAR_OPEN, String(this.open))
   }
 
   handleSync() {
@@ -189,7 +178,9 @@ export class FixbarComponent {
 
         updateFileContent({
           message: 'update db',
-          content: JSON.stringify(this.websiteList),
+          content: JSON.stringify(
+            cleanWebAttrs(JSON.parse(JSON.stringify(this.websiteList)))
+          ),
           path: DB_PATH,
         })
           .then(() => {
@@ -204,7 +195,7 @@ export class FixbarComponent {
 
   toggleLocale() {
     const l = this.language === 'en' ? 'zh-CN' : 'en'
-    window.localStorage.setItem(STORAGE_KEY_MAP.language, l)
-    window.location.reload()
+    localStorage.setItem(STORAGE_KEY_MAP.LANGUAGE, l)
+    location.reload()
   }
 }

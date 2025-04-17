@@ -30,9 +30,9 @@
             index as pageIdx;
             trackBy: commonService.trackByItem
           "
-          (nzOpenChange)="openMenu(item, pageIdx)"
+          (nzOpenChange)="openMenu(item)"
           [nzTitle]="titleTpl"
-          [nzOpen]="item['collapsed']"
+          [nzOpen]="item.id === menuOpenId"
         >
           <ng-template #titleTpl>
             <img *ngIf="item.icon" class="sideicon" [src]="item.icon" />
@@ -97,10 +97,17 @@
       <component-group></component-group>
 
       <app-search class="mobile-search" />
+      <div class="px-2.5">
+        <app-web-list [search]="false" [overflow]="true" [iconSize]="35" />
+      </div>
 
       <nz-content class="content" id="content">
-        <app-web-list [search]="false" [overflow]="true" />
-
+        <div
+          class="sticky top-0 left-0 z-10"
+          *ngIf="commonService.currentList.length > 1"
+        >
+          <app-class-tabs [data]="commonService.currentList" />
+        </div>
         <div class="box">
           <div *ngIf="commonService.currentList.length > 0; else noData">
             <div
@@ -120,9 +127,12 @@
                 />
 
                 <div
-                  class="grid gap-x-4 gap-y-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4"
                   [class.hidden]="item['collapsed']"
                   [ngClass]="{
+                    'grid gap-x-4 gap-y-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4':
+                      commonService.settings.sideCardStyle !== 'icon',
+                    'flex flex-wrap gap-x-6 gap-y-4':
+                      commonService.settings.sideCardStyle === 'icon',
                     '2xl:grid-cols-6':
                       commonService.settings.sideCardStyle === 'original' ||
                       commonService.settings.sideCardStyle === 'example'

@@ -21,7 +21,7 @@ yarn-error.log
 *.sublime-workspace
 
 # Visual Studio Code
-.vscode/*
+.vscode
 .history/*
 
 # Miscellaneous
@@ -43,6 +43,10 @@ nav.config.json
 _upload
 test.md
 data/collect.json
+data/serverdb.json
 /.dockerignore
 /Dockerfile
 .next
+
+log/
+logs/

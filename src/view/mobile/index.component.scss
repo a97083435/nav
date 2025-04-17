@@ -7,7 +7,7 @@ $bg-color: #fbfbfb;
   overflow: hidden;
 
   .header {
-    z-index: 9999;
+    z-index: 999;
     position: fixed;
     top: 0;
     left: 0;
@@ -122,12 +122,6 @@ $bg-color: #fbfbfb;
         border-radius: 2px;
         background: #20a0ff;
       }
-    }
-
-    .block-title {
-      padding: 10px 0 10px 15px;
-      border-bottom: 1px solid #eee;
-      color: #3f51b5;
     }
   }
 }

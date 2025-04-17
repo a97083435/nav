@@ -8,15 +8,22 @@ import { CommonService } from 'src/services/common'
 import { SearchComponent } from 'src/components/search/index.component'
 import { CardComponent } from 'src/components/card/index.component'
 import { FooterComponent } from 'src/components/footer/footer.component'
+import { ToolbarTitleWebComponent } from 'src/components/toolbar-title/index.component'
 
 @Component({
   standalone: true,
-  imports: [CommonModule, SearchComponent, CardComponent, FooterComponent],
-  selector: 'app-home',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.scss'],
+  imports: [
+    CommonModule,
+    SearchComponent,
+    CardComponent,
+    FooterComponent,
+    ToolbarTitleWebComponent,
+  ],
+  selector: 'app-mobile',
+  templateUrl: './index.component.html',
+  styleUrls: ['./index.component.scss'],
 })
-export default class WebpComponent {
+export default class MobileComponent {
   open: boolean = false
 
   constructor(public commonService: CommonService) {}

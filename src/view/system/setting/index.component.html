@@ -1,4 +1,4 @@
-<form nz-form [formGroup]="validateForm">
+<form nz-form [formGroup]="validateForm" class="!pb-20">
   <nz-form-item>
     <nz-form-label [nzSpan]="4">{{ $t('_webLogo') }}</nz-form-label>
     <nz-form-control [nzSpan]="20">
@@ -90,7 +90,11 @@
   <nz-form-item>
     <nz-form-label [nzSpan]="4">Email</nz-form-label>
     <nz-form-control [nzSpan]="10">
-      <input nz-input formControlName="email" placeholder="用户提交收录通知" />
+      <input
+        nz-input
+        formControlName="email"
+        [placeholder]="$t('_submitNotice')"
+      />
     </nz-form-control>
   </nz-form-item>
 
@@ -278,6 +282,18 @@
   </nz-form-item>
 
   <nz-form-item>
+    <nz-form-label [nzSpan]="4">{{ $t('_createWebKey') }}</nz-form-label>
+    <nz-form-control [nzSpan]="10">
+      <input
+        nz-input
+        formControlName="createWebKey"
+        maxlength="1"
+        class="max-w-10"
+      />
+    </nz-form-control>
+  </nz-form-item>
+
+  <nz-form-item>
     <nz-form-label [nzSpan]="4">{{ $t('_headHtml') }}</nz-form-label>
     <nz-form-control [nzSpan]="20">
       <textarea
@@ -365,15 +381,18 @@
         <nz-form-control [nzSpan]="10">
           <nz-radio-group formControlName="lightCardStyle">
             <label nz-radio nzValue="standard">{{ $t('_standard') }}</label>
+            <label nz-radio nzValue="poster">{{ $t('_poster') }}</label>
             <label nz-radio nzValue="column">{{ $t('_column') }}</label>
             <label nz-radio nzValue="example">{{ $t('_simplicity') }}</label>
             <label nz-radio nzValue="retro">{{ $t('_retro') }}</label>
             <label nz-radio nzValue="original">{{ $t('_original') }}</label>
+            <label nz-radio nzValue="icon">{{ $t('_icon') }}</label>
           </nz-radio-group>
 
-          <div class="mt-2.5">
-            <img
-              src="https://gcore.jsdelivr.net/gh/xjh22222228/public@gh-pages/nav/card-style-example.png"
+          <div class="mt-2.5 w-96 pointer-events-none">
+            <app-card
+              [dataSource]="webDemoData"
+              [cardStyle]="validateForm.get('lightCardStyle')?.value"
             />
           </div>
         </nz-form-control>
@@ -399,14 +418,14 @@
           >
             <thead>
               <tr>
-                <th>{{ $t('_backgroundImage') }}</th>
-                <th>{{ $t('_jumpAddr') }}</th>
-                <th>{{ $t('_action') }}</th>
+                <th nzWidth="260px">{{ $t('_backgroundImage') }}</th>
+                <th nzWidth="300px">{{ $t('_jumpAddr') }}</th>
+                <th nzWidth="200px">{{ $t('_action') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let data of settings.lightImages; index as idx">
-                <td width="260px" class="whitespace-nowrap">
+                <td class="whitespace-nowrap">
                   <img [src]="data['src']" *ngIf="data['src']" class="icon" />
                   <div>
                     <input
@@ -498,10 +517,12 @@
         <nz-form-control [nzSpan]="10">
           <nz-radio-group formControlName="superCardStyle">
             <label nz-radio nzValue="standard">{{ $t('_standard') }}</label>
+            <label nz-radio nzValue="poster">{{ $t('_poster') }}</label>
             <label nz-radio nzValue="column">{{ $t('_column') }}</label>
             <label nz-radio nzValue="example">{{ $t('_simplicity') }}</label>
             <label nz-radio nzValue="retro">{{ $t('_retro') }}</label>
             <label nz-radio nzValue="original">{{ $t('_original') }}</label>
+            <label nz-radio nzValue="icon">{{ $t('_icon') }}</label>
           </nz-radio-group>
         </nz-form-control>
       </nz-form-item>
@@ -526,14 +547,14 @@
           >
             <thead>
               <tr>
-                <th>{{ $t('_backgroundImage') }}</th>
-                <th>{{ $t('_jumpAddr') }}</th>
-                <th>{{ $t('_action') }}</th>
+                <th nzWidth="260px">{{ $t('_backgroundImage') }}</th>
+                <th nzWidth="300px">{{ $t('_jumpAddr') }}</th>
+                <th nzWidth="200px">{{ $t('_action') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let data of settings.superImages; index as idx">
-                <td width="260px" class="whitespace-nowrap">
+                <td class="whitespace-nowrap">
                   <img [src]="data['src']" *ngIf="data['src']" class="icon" />
 
                   <div>
@@ -626,10 +647,12 @@
         <nz-form-control [nzSpan]="10">
           <nz-radio-group formControlName="simCardStyle">
             <label nz-radio nzValue="standard">{{ $t('_standard') }}</label>
+            <label nz-radio nzValue="poster">{{ $t('_poster') }}</label>
             <label nz-radio nzValue="column">{{ $t('_column') }}</label>
             <label nz-radio nzValue="example">{{ $t('_simplicity') }}</label>
             <label nz-radio nzValue="retro">{{ $t('_retro') }}</label>
             <label nz-radio nzValue="original">{{ $t('_original') }}</label>
+            <label nz-radio nzValue="icon">{{ $t('_icon') }}</label>
           </nz-radio-group>
         </nz-form-control>
       </nz-form-item>
@@ -654,14 +677,14 @@
           >
             <thead>
               <tr>
-                <th>{{ $t('_backgroundImage') }}</th>
-                <th>{{ $t('_jumpAddr') }}</th>
-                <th>{{ $t('_action') }}</th>
+                <th nzWidth="260px">{{ $t('_backgroundImage') }}</th>
+                <th nzWidth="300px">{{ $t('_jumpAddr') }}</th>
+                <th nzWidth="200px">{{ $t('_action') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let data of settings.simThemeImages; index as idx">
-                <td width="260px" class="whitespace-nowrap">
+                <td class="whitespace-nowrap">
                   <img [src]="data['src']" *ngIf="data['src']" class="icon" />
                   <div>
                     <input
@@ -785,10 +808,12 @@
         <nz-form-control [nzSpan]="10">
           <nz-radio-group formControlName="sideCardStyle">
             <label nz-radio nzValue="standard">{{ $t('_standard') }}</label>
+            <label nz-radio nzValue="poster">{{ $t('_poster') }}</label>
             <label nz-radio nzValue="column">{{ $t('_column') }}</label>
             <label nz-radio nzValue="example">{{ $t('_simplicity') }}</label>
             <label nz-radio nzValue="retro">{{ $t('_retro') }}</label>
             <label nz-radio nzValue="original">{{ $t('_original') }}</label>
+            <label nz-radio nzValue="icon">{{ $t('_icon') }}</label>
           </nz-radio-group>
         </nz-form-control>
       </nz-form-item>
@@ -812,14 +837,14 @@
           >
             <thead>
               <tr>
-                <th>{{ $t('_backgroundImage') }}</th>
-                <th>{{ $t('_jumpAddr') }}</th>
-                <th>{{ $t('_action') }}</th>
+                <th nzWidth="260px">{{ $t('_backgroundImage') }}</th>
+                <th nzWidth="300px">{{ $t('_jumpAddr') }}</th>
+                <th nzWidth="200px">{{ $t('_action') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let data of settings.sideThemeImages; index as idx">
-                <td width="260px" class="whitespace-nowrap">
+                <td class="whitespace-nowrap">
                   <img [src]="data['src']" *ngIf="data['src']" class="icon" />
                   <div>
                     <input
@@ -959,7 +984,7 @@
             type="text"
             [value]="settings.shortcutThemeImages[0]['src']"
             (change)="onShortcutImgChange($event)"
-            style="width: 300px; margin-top: 10px"
+            class="max-w-full w-full !mt-2.5"
           />
           <app-upload (onChange)="onShortcutImgChange($event)" />
         </nz-form-control>
@@ -983,10 +1008,12 @@
         <nz-form-control [nzSpan]="10">
           <nz-radio-group formControlName="appCardStyle">
             <label nz-radio nzValue="standard">{{ $t('_standard') }}</label>
+            <label nz-radio nzValue="poster">{{ $t('_poster') }}</label>
             <label nz-radio nzValue="column">{{ $t('_column') }}</label>
             <label nz-radio nzValue="example">{{ $t('_simplicity') }}</label>
             <label nz-radio nzValue="retro">{{ $t('_retro') }}</label>
             <label nz-radio nzValue="original">{{ $t('_original') }}</label>
+            <label nz-radio nzValue="icon">{{ $t('_icon') }}</label>
           </nz-radio-group>
         </nz-form-control>
       </nz-form-item>
@@ -1055,6 +1082,19 @@
     </nz-form-control>
   </nz-form-item>
 
+  <!-- <nz-form-item *ngIf="isSelfDevelop">
+    <nz-form-label [nzSpan]="4" [nzNoColon]="true">{{
+      $t('_spiderImg')
+    }}</nz-form-label>
+    <nz-form-control [nzSpan]="20">
+      <nz-radio-group formControlName="spiderImg">
+        <label nz-radio nzValue="NO">{{ $t('_notSpider') }}</label>
+        <label nz-radio nzValue="EMPTY">{{ $t('_spiderEmpty') }}</label>
+        <label nz-radio nzValue="ALWAYS">{{ $t('_spiderAlways') }}</label>
+      </nz-radio-group>
+    </nz-form-control>
+  </nz-form-item> -->
+
   <nz-form-item>
     <nz-form-label [nzSpan]="4">{{ $t('_spiderQty') }}</nz-form-label>
     <nz-form-control [nzSpan]="10">
@@ -1082,7 +1122,7 @@
     [nzLoading]="submitting"
     (click)="handleSpider()"
   >
-    点我爬取更新信息，先保存系统设置在点
+    现在爬取
   </button>
 
   <div class="bottom-bar">

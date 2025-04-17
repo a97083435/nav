@@ -14,13 +14,17 @@ import { queryString, setLocation, isMobile, getDefaultTheme } from '../utils'
 import { en_US, NzI18nService, zh_CN } from 'ng-zorro-antd/i18n'
 import { getLocale } from 'src/locale'
 import { settings } from 'src/store'
-import { verifyToken, getContentes, getUserCollectCount } from 'src/api'
+import {
+  verifyToken,
+  authorName,
+  getContentes,
+  getUserCollectCount,
+} from 'src/api'
 import { getToken, userLogout, isLogin, getPermissions } from 'src/utils/user'
 import { NzMessageService } from 'ng-zorro-antd/message'
 import { NzNotificationService } from 'ng-zorro-antd/notification'
 import { NzSpinModule } from 'ng-zorro-antd/spin'
 import { NzModalService } from 'ng-zorro-antd/modal'
-
 import { getWebs } from 'src/utils/web'
 import { isSelfDevelop } from 'src/utils/utils'
 import { routes } from './app.routes'
@@ -29,6 +33,8 @@ import { CreateWebComponent } from 'src/components/create-web/index.component'
 import { IconGitComponent } from 'src/components/icon-git/icon-git.component'
 import { EditClassComponent } from 'src/components/edit-class/index.component'
 import { $t } from 'src/locale'
+import { getAuthCode } from 'src/utils/user'
+import { DeleteModalComponent } from 'src/components/delete-modal/index.component'
 import event from 'src/utils/mitt'
 
 @Component({
@@ -41,13 +47,14 @@ import event from 'src/utils/mitt'
     CommonModule,
     MoveWebComponent,
     CreateWebComponent,
+    DeleteModalComponent,
   ],
   selector: 'app-xiejiahe',
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
 })
 export class AppComponent {
-  isLogin: boolean = isLogin
+  readonly isLogin: boolean = isLogin
   fetchIng = true
 
   constructor(
@@ -59,7 +66,7 @@ export class AppComponent {
     private modal: NzModalService
   ) {
     this.registerEvents()
-
+    this.registerKeyboard()
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.updateDocumentTitle()
@@ -152,9 +159,15 @@ export class AppComponent {
       verifyToken(token)
         .then((res) => {
           const data = res.data || {}
-          if (!settings.email && data.email) {
-            settings.email = data.email
+          if (!isSelfDevelop) {
+            if (data.login && data.login !== authorName) {
+              throw new Error('Bad credentials')
+            }
+            if (!settings.email && data.email) {
+              settings.email = data.email
+            }
           }
+
           event.emit('GITHUB_USER_INFO', data)
         })
         .catch((e: any) => {
@@ -169,7 +182,7 @@ export class AppComponent {
   }
 
   private getCollectCount() {
-    if (isLogin && getPermissions(settings).ok) {
+    if (isLogin && getAuthCode() && getPermissions(settings).ok) {
       getUserCollectCount().then((res) => {
         const count = res.data.count
         if (count > 0) {
@@ -188,6 +201,10 @@ export class AppComponent {
   private goRoute() {
     // is App
     if (settings.appTheme !== 'Current' && isMobile()) {
+      if (location.href.includes('system')) {
+        return
+      }
+
       const url = (this.router.url.split('?')[0] || '').toLowerCase()
       const { id, q } = queryString()
       const queryParams = { id, q }
@@ -197,5 +214,30 @@ export class AppComponent {
         this.router.navigate([path], { queryParams })
       }
     }
+  }
+
+  private registerKeyboard() {
+    document.addEventListener('keyup', (e) => {
+      const createWebKey = settings.createWebKey.toLowerCase()
+      if (!createWebKey) {
+        return
+      }
+      const activeElement = document.activeElement
+      if (activeElement) {
+        if (
+          activeElement.nodeName === 'INPUT' ||
+          activeElement.nodeName === 'TEXTAREA'
+        ) {
+          return
+        }
+      }
+
+      const key = e.key.toLowerCase()
+      if (key === createWebKey) {
+        event.emit('CREATE_WEB', {
+          isKeyboard: true,
+        })
+      }
+    })
   }
 }

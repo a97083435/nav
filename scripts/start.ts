@@ -3,12 +3,10 @@
 // See https://github.com/xjh22222228/nav
 
 import fs from 'fs'
-import path from 'path'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc.js'
 import timezone from 'dayjs/plugin/timezone.js'
 import defaultDb from './db'
-import yaml from 'js-yaml'
 import LZString from 'lz-string'
 import {
   TAG_ID1,
@@ -19,138 +17,143 @@ import {
   TAG_ID_NAME3,
   getWebCount,
   setWebs,
-  replaceJsdelivrCDN,
   PATHS,
+  getConfig,
+  fileWriteStream,
 } from './utils'
+import { replaceJsdelivrCDN } from '../src/utils/pureUtils'
 import type {
   ITagPropValues,
   ISettings,
   INavProps,
   InternalProps,
+  IComponentProps,
 } from '../src/types/index'
+import { ComponentType } from '../src/types/index'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
 dayjs.tz.setDefault('Asia/Shanghai')
 
-const initConfig = () => {
-  const pkgJson = JSON.parse(fs.readFileSync(PATHS.pkg).toString())
-  const config = yaml.load(fs.readFileSync(PATHS.config).toString()) as Record<
-    string,
-    any
-  >
-
-  return {
-    version: pkgJson.version,
-    gitRepoUrl: config['gitRepoUrl'],
-    imageRepoUrl: config['imageRepoUrl'],
-    branch: config['branch'],
-    hashMode: config['hashMode'],
-    address: config['address'],
-    email: config['email'],
-    port: config['port'],
-    datetime: dayjs.tz().format('YYYY-MM-DD HH:mm'),
-  } as const
-}
-
-const readDb = (): INavProps[] => {
+const getWebs = (): INavProps[] => {
   try {
     const strings = fs.readFileSync(PATHS.db).toString().trim()
     if (!strings) throw new Error('empty')
+
+    try {
+      const serverdb = fs.readFileSync(PATHS.serverdb).toString().trim()
+      return JSON.parse(serverdb)
+    } catch {}
 
     return strings[0] === '['
       ? JSON.parse(strings)
       : JSON.parse(LZString.decompressFromBase64(strings)) ||
           JSON.parse(LZString.decompressFromBase64(defaultDb))
-  } catch (e) {
+  } catch {
     return JSON.parse(LZString.decompressFromBase64(defaultDb))
   }
 }
 
 const main = async () => {
-  const configJson = initConfig()
-  fs.writeFileSync(
-    path.join('.', 'nav.config.json'),
-    JSON.stringify(configJson)
-  )
+  const configJson = getConfig()
+  fs.writeFileSync(PATHS.configJson, JSON.stringify(configJson))
 
-  const db = readDb()
+  const db = getWebs()
   let internal = {} as InternalProps
   let settings = {} as ISettings
   let tags: ITagPropValues[] = []
   let search: any[] = []
-  let components: Record<string, any>[] = []
+  let component: IComponentProps = { zoom: 1, components: [] }
 
   try {
     internal = JSON.parse(fs.readFileSync(PATHS.internal).toString())
     settings = JSON.parse(fs.readFileSync(PATHS.settings).toString())
     tags = JSON.parse(fs.readFileSync(PATHS.tag).toString())
     search = JSON.parse(fs.readFileSync(PATHS.search).toString())
-  } catch {}
+  } catch (e: any) {
+    console.log(e.message)
+  }
 
   try {
-    components = JSON.parse(fs.readFileSync(PATHS.component).toString())
+    const components = JSON.parse(fs.readFileSync(PATHS.component).toString())
+    // < 16
+    if (Array.isArray(components)) {
+      component = {
+        zoom: 1,
+        components,
+      }
+    } else {
+      component = components
+    }
   } catch {
   } finally {
-    let idx = components.findIndex((item) => item['type'] === 1)
-    const calendar: Record<string, any> = {
-      type: 1,
-      id: -1,
+    let idx = component.components.findIndex(
+      (item) => item['type'] === ComponentType.Calendar
+    )
+    const calendar = {
+      type: ComponentType.Calendar,
+      id: -ComponentType.Calendar,
       topColor: '#ff5a5d',
       bgColor: '#1d1d1d',
     }
     if (idx >= 0) {
-      components[idx] = {
+      component.components[idx] = {
         ...calendar,
-        ...components[idx],
+        ...component.components[idx],
       }
     } else {
-      components.push(calendar)
+      component.components.push(calendar)
     }
     //
-    idx = components.findIndex((item) => item['type'] === 2)
-    const offWork: Record<string, any> = {
-      type: 2,
-      id: -2,
+    idx = component.components.findIndex(
+      (item) => item['type'] === ComponentType.OffWork
+    )
+    const offWork = {
+      type: ComponentType.OffWork,
+      id: -ComponentType.OffWork,
       workTitle: '距离下班还有',
       restTitle: '休息啦',
       startDate: new Date(2018, 3, 26, 9, 0, 0).getTime(),
       date: new Date(2018, 3, 26, 18, 0, 0).getTime(),
     }
     if (idx >= 0) {
-      components[idx] = {
+      component.components[idx] = {
         ...offWork,
-        ...components[idx],
+        ...component.components[idx],
       }
     } else {
-      components.push(offWork)
+      component.components.push(offWork)
     }
     //
-    idx = components.findIndex((item) => item['type'] === 4)
-    const image: Record<string, any> = {
-      type: 4,
-      id: -4,
+    idx = component.components.findIndex(
+      (item) => item['type'] === ComponentType.Image
+    )
+    const image = {
+      type: ComponentType.Image,
+      id: -ComponentType.Image,
       url: 'https://gcore.jsdelivr.net/gh/xjh22222228/public@gh-pages/nav/component1.jpg',
       go: '',
       text: '只有认可，才能强大',
     }
     if (idx >= 0) {
-      components[idx] = {
+      component.components[idx] = {
         ...image,
-        ...components[idx],
+        ...component.components[idx],
       }
-      components[idx]['url'] = replaceJsdelivrCDN(
-        components[idx]['url'],
+      component.components[idx]['url'] = replaceJsdelivrCDN(
+        component.components[idx]['url'],
         settings
       )
     } else {
-      components.push(image)
+      component.components.push(image)
     }
     //
-    idx = components.findIndex((item) => item['type'] === 5)
-    const countdown: Record<string, any> = {
-      type: 5,
-      id: -5,
+    idx = component.components.findIndex(
+      (item) => item['type'] === ComponentType.Countdown
+    )
+    const countdown = {
+      type: ComponentType.Countdown,
+      id: -ComponentType.Countdown,
       topColor: 'linear-gradient(90deg, #FAD961 0%, #F76B1C 100%)',
       bgColor: 'rgb(235,129,124)',
       url: 'https://gcore.jsdelivr.net/gh/xjh22222228/public@gh-pages/nav/component2.jpg',
@@ -160,64 +163,90 @@ const main = async () => {
       date: '2026-02-17',
     }
     if (idx >= 0) {
-      components[idx] = {
+      component.components[idx] = {
         ...countdown,
-        ...components[idx],
+        ...component.components[idx],
       }
-      components[idx]['url'] = replaceJsdelivrCDN(
-        components[idx]['url'],
+      component.components[idx]['url'] = replaceJsdelivrCDN(
+        component.components[idx]['url'],
         settings
       )
     } else {
-      components.push(countdown)
+      component.components.push(countdown)
     }
     //
-    idx = components.findIndex((item) => item['type'] === 3)
-    const runtime: Record<string, any> = {
-      type: 3,
-      id: -3,
+    idx = component.components.findIndex(
+      (item) => item['type'] === ComponentType.Runtime
+    )
+    const runtime = {
+      type: ComponentType.Runtime,
+      id: -ComponentType.Runtime,
       title: '已稳定运行',
     }
     if (idx >= 0) {
-      components[idx] = {
+      component.components[idx] = {
         ...runtime,
-        ...components[idx],
+        ...component.components[idx],
       }
     } else {
-      components.push(runtime)
+      component.components.push(runtime)
     }
     //
-    idx = components.findIndex((item) => item['type'] === 6)
-    const html: Record<string, any> = {
-      type: 6,
-      id: -6,
+    idx = component.components.findIndex(
+      (item) => item['type'] === ComponentType.HTML
+    )
+    const html = {
+      type: ComponentType.HTML,
+      id: -ComponentType.HTML,
       html: '你好，发现导航',
       width: 160,
       bgColor: '#fff',
     }
     if (idx >= 0) {
-      components[idx] = {
+      component.components[idx] = {
         ...html,
-        ...components[idx],
+        ...component.components[idx],
       }
     } else {
-      components.push(html)
+      component.components.push(html)
     }
-    idx = components.findIndex((item) => item['type'] === 7)
-    const holiday: Record<string, any> = {
-      type: 7,
-      id: -7,
+    //
+    idx = component.components.findIndex(
+      (item) => item['type'] === ComponentType.Holiday
+    )
+    const holiday = {
+      type: ComponentType.Holiday,
+      id: -ComponentType.Holiday,
       items: [],
     }
     if (idx >= 0) {
-      components[idx] = {
+      component.components[idx] = {
         ...holiday,
-        ...components[idx],
+        ...component.components[idx],
       }
     } else {
-      components.push(holiday)
+      component.components.push(holiday)
     }
-    fs.writeFileSync(PATHS.component, JSON.stringify(components))
+    //
+    idx = component.components.findIndex(
+      (item) => item['type'] === ComponentType.News
+    )
+    const news = {
+      type: ComponentType.News,
+      id: -ComponentType.News,
+      bgColor: 'linear-gradient(100deg,#2a2d38, rgb(35, 39, 54))',
+      types: [],
+      count: 0,
+    }
+    if (idx >= 0) {
+      component.components[idx] = {
+        ...news,
+        ...component.components[idx],
+      }
+    } else {
+      component.components.push(news)
+    }
+    fs.writeFileSync(PATHS.component, JSON.stringify(component))
   }
 
   {
@@ -276,6 +305,10 @@ const main = async () => {
           isInner: false,
         },
       ]
+      search = search.map((item) => {
+        item.icon = replaceJsdelivrCDN(item.icon, settings)
+        return item
+      })
       fs.writeFileSync(PATHS.search, JSON.stringify(search), {
         encoding: 'utf-8',
       })
@@ -350,6 +383,7 @@ const main = async () => {
     settings.actionUrl ??= ''
     settings.appTheme ??= 'App'
     settings.openSEO ??= !configJson.address
+    settings.createWebKey ??= 'E'
     settings.headerContent ??= ''
     settings.footerContent ??= `
 <div class="dark-white">
@@ -437,6 +471,7 @@ const main = async () => {
     settings.spiderIcon ??= 'NO'
     settings.spiderDescription ??= 'NO'
     settings.spiderTitle ??= 'NO'
+    settings.spiderImg ??= 'NO'
     settings.spiderQty ??= 200
     settings.spiderTimeout ??= 6
     settings.spiderTimeout = Number(settings.spiderTimeout) || 6
@@ -483,7 +518,12 @@ const main = async () => {
   internal.loginViewCount = loginViewCount
 
   fs.writeFileSync(PATHS.internal, JSON.stringify(internal))
-  fs.writeFileSync(PATHS.db, JSON.stringify(setWebs(db, settings, tags)))
+
+  const webs = setWebs(db, settings, tags)
+  await fileWriteStream(PATHS.db, webs)
+  if (configJson.address) {
+    await fileWriteStream(PATHS.serverdb, webs)
+  }
 }
 
 main().catch(console.error)

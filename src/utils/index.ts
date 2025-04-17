@@ -50,11 +50,20 @@ export function fuzzySearch(
     outerLoop: for (let i = 0; i < arr.length; i++) {
       const item = arr[i]
 
-      if (sType === SearchType.Class && item.title) {
-        if (item.nav[0]?.name && item.title.toLowerCase().includes(keyword)) {
-          resultList.push(item)
-          break
+      if (sType === SearchType.Class) {
+        if (item.title) {
+          if (
+            item.title.toLowerCase().includes(keyword) ||
+            item.id == keyword
+          ) {
+            resultList.push(item)
+          }
         }
+
+        if (Array.isArray(item.nav)) {
+          f(item.nav)
+        }
+        continue
       }
 
       if (Array.isArray(item.nav)) {
@@ -220,8 +229,6 @@ export function randomColor(): string {
 
 let randomTimer: any
 export function randomBgImg(): void {
-  if (isDark()) return
-
   if (randomTimer) {
     clearInterval(randomTimer)
   }
@@ -229,8 +236,8 @@ export function randomBgImg(): void {
   const id = 'random-light-bg'
   const el = document.getElementById(id) || document.createElement('div')
   const deg = randomInt(360)
-
   el.id = id
+  el.className = 'dark-bg'
   el.style.cssText = `
     position: fixed;
     top: 0;
@@ -240,21 +247,11 @@ export function randomBgImg(): void {
     z-index: -3;
     transition: 1s linear;
   `
-
   el.style.backgroundImage = `linear-gradient(${deg}deg, ${randomColor()} 0%, ${randomColor()} 100%)`
   document.body.appendChild(el)
 
-  const setBg = (): void => {
-    if (isDark()) {
-      if (randomTimer) {
-        clearInterval(randomTimer)
-        randomTimer = null
-      }
-      return
-    }
-
+  const transition = (): void => {
     const randomBg = `linear-gradient(${deg}deg, ${randomColor()} 0%, ${randomColor()} 100%)`
-
     el.style.opacity = '0.3'
     setTimeout(() => {
       el.style.backgroundImage = randomBg
@@ -262,18 +259,29 @@ export function randomBgImg(): void {
     }, 1000)
   }
 
-  randomTimer = setInterval(setBg, 10000)
+  randomTimer = setInterval(transition, 10000)
+}
+
+export function removeBgImg(): void {
+  if (randomTimer) {
+    clearInterval(randomTimer)
+    randomTimer = null
+  }
+  const el = document.getElementById('random-light-bg')
+  if (el) {
+    el.parentNode?.removeChild(el)
+  }
 }
 
 export function queryString() {
-  const { href } = window.location
+  const { href } = location
   const search = href.split('?')[1] || ''
   const parseQs = qs.parse(search)
   let id = parseQs['id']
 
   if (parseQs['id'] == null) {
     try {
-      const location = window.localStorage.getItem(STORAGE_KEY_MAP.location)
+      const location = localStorage.getItem(STORAGE_KEY_MAP.LOCATION)
       if (location) {
         const localLocation = JSON.parse(location)
         id = localLocation.id
@@ -293,7 +301,7 @@ export function setLocation() {
   const { id } = queryString()
 
   window.localStorage.setItem(
-    STORAGE_KEY_MAP.location,
+    STORAGE_KEY_MAP.LOCATION,
     JSON.stringify({
       id,
     })
@@ -303,7 +311,7 @@ export function setLocation() {
 export function getDefaultSearchEngine(): ISearchProps {
   let DEFAULT = (searchEngineList[0] || {}) as ISearchProps
   try {
-    const engine = window.localStorage.getItem(STORAGE_KEY_MAP.engine)
+    const engine = window.localStorage.getItem(STORAGE_KEY_MAP.SEARCH_ENGINE)
     if (engine) {
       const local = JSON.parse(engine)
       const findItem = searchEngineList.find((item) => item.name === local.name)
@@ -316,11 +324,14 @@ export function getDefaultSearchEngine(): ISearchProps {
 }
 
 export function setDefaultSearchEngine(engine: ISearchProps) {
-  window.localStorage.setItem(STORAGE_KEY_MAP.engine, JSON.stringify(engine))
+  window.localStorage.setItem(
+    STORAGE_KEY_MAP.SEARCH_ENGINE,
+    JSON.stringify(engine)
+  )
 }
 
 export function isDark(): boolean {
-  const storageVal = window.localStorage.getItem(STORAGE_KEY_MAP.isDark)
+  const storageVal = window.localStorage.getItem(STORAGE_KEY_MAP.IS_DARK)
   const darkMode = window?.matchMedia?.('(prefers-color-scheme: dark)')?.matches
 
   if (!storageVal && darkMode) {
@@ -473,52 +484,77 @@ export function getDefaultTheme() {
   return t
 }
 
-export function getClassById(id: unknown, initValue = 0) {
+export function getClassById(id: unknown, initValue = 0, isWebId = false) {
   id = Number(id)
   let oneIndex = initValue
   let twoIndex = initValue
   let threeIndex = initValue
+  let parentId = -1
   const breadcrumb: string[] = []
 
   outerLoop: for (let i = 0; i < websiteList.length; i++) {
     const item = websiteList[i]
-    if (item.title) {
-      if (item.id === id) {
-        oneIndex = i
-        breadcrumb.push(item.title)
-        break
-      }
+    if (item.id === id) {
+      oneIndex = i
+      breadcrumb.push(item.title)
+      break
     }
     if (Array.isArray(item.nav)) {
       for (let j = 0; j < item.nav.length; j++) {
         const twoItem = item.nav[j]
-        if (twoItem.title) {
-          if (twoItem.id === id) {
-            oneIndex = i
-            twoIndex = j
-            breadcrumb.push(item.title, twoItem.title)
-            break outerLoop
-          }
+        if (twoItem.id === id) {
+          parentId = item.id
+          oneIndex = i
+          twoIndex = j
+          breadcrumb.push(item.title, twoItem.title)
+          break outerLoop
         }
         if (Array.isArray(twoItem.nav)) {
           for (let k = 0; k < twoItem.nav.length; k++) {
             const threeItem = twoItem.nav[k]
             if (threeItem.id === id) {
+              parentId = twoItem.id
               oneIndex = i
               twoIndex = j
               threeIndex = k
               breadcrumb.push(item.title, twoItem.title, threeItem.title)
               break outerLoop
             }
+            if (isWebId) {
+              if (Array.isArray(threeItem.nav)) {
+                for (let l = 0; l < threeItem.nav.length; l++) {
+                  const web = threeItem.nav[l]
+                  if (web.id === id) {
+                    parentId = threeItem.id
+                    oneIndex = i
+                    twoIndex = j
+                    threeIndex = k
+                    breadcrumb.push(item.title, twoItem.title, threeItem.title)
+                    break outerLoop
+                  }
+                }
+              }
+            }
           }
         }
       }
     }
   }
-  return {
-    oneIndex,
-    twoIndex,
-    threeIndex,
-    breadcrumb,
-  } as const
+  return { parentId, oneIndex, twoIndex, threeIndex, breadcrumb } as const
+}
+
+export function scrollIntoView(
+  parentElement: HTMLElement,
+  target: HTMLElement,
+  config?: ScrollToOptions
+) {
+  const containerWidth = parentElement.offsetWidth
+  const categoryWidth = target.offsetWidth
+  const categoryLeft = target.offsetLeft
+  const scrollPosition = categoryLeft - (containerWidth - categoryWidth) / 2
+  parentElement.scrollTo({
+    left: scrollPosition,
+    behavior: 'smooth',
+    ...config,
+  })
 }

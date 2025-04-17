@@ -23,6 +23,7 @@ export enum ComponentType {
   Countdown = 5,
   HTML = 6,
   Holiday = 7,
+  News = 8,
 }
 
 export enum ActionType {
@@ -31,13 +32,97 @@ export enum ActionType {
   Delete = 3,
 }
 
-export interface IComponentProps {
+export enum NewsType {
+  Weibo = 1,
+  V2ex = 2,
+  Douyin = 3,
+  Bilibili = 4,
+  Juejin = 5,
+  Baidu = 6,
+  GitHub = 7,
+  Pojie52 = 8,
+  Xiaohongshu = 9,
+  Toutiao = 10,
+  Douban = 11,
+  HackerNews = 12,
+  Zhihu = 13,
+  ZhihuDaily = 14,
+}
+
+export interface INewsProps {
+  types: NewsType[]
+  count: number
+  bgColor: string
+}
+
+export interface ICalendarProps {
+  topColor: string
+  bgColor: string
+}
+
+export interface IOffWorkProps {
+  workTitle: string
+  restTitle: string
+  startDate: number
+  date: number | string
+}
+
+export interface IImageProps {
+  url: string
+  go: string
+  text: string
+}
+
+export interface ICountdownProps {
+  topColor: string
+  bgColor: string
+  url: string
+  title: string
+  dateColor: string
+  dayColor: string
+  date: string
+}
+
+export interface IRuntimeProps {
+  title: string
+}
+
+export interface IHtmlProps {
+  html: string
+  width: number
+  bgColor: string
+}
+
+export interface IHolidayProps {
+  items: any[]
+}
+
+export interface IComponentItemProps
+  extends Partial<Omit<INewsProps, 'bgColor'>>,
+    Partial<ICalendarProps>,
+    Partial<IOffWorkProps>,
+    Partial<IImageProps>,
+    Partial<Omit<ICountdownProps, 'date'>>,
+    Partial<IRuntimeProps>,
+    Partial<Omit<IHtmlProps, 'bgColor'>> {
   id: number
   type: number
   [key: string]: any
 }
 
-export type ICardType = 'standard' | 'column' | 'example' | 'retro' | 'original'
+export interface IComponentProps {
+  zoom: number
+  components: IComponentItemProps[]
+}
+
+export type ICardType =
+  | 'standard'
+  | 'column'
+  | 'example'
+  | 'retro'
+  | 'original'
+  | 'poster'
+  | 'icon'
 
 type OverType = 'overflow' | 'ellipsis'
 
@@ -49,6 +134,7 @@ export interface ITagPropValues {
   color: string
   desc: string
   isInner: boolean
+  sort?: number | string
 
   [key: string]: any
 }
@@ -76,8 +162,9 @@ export interface IWebProps {
   desc: string
   url: string
   icon: string
-  breadcrumb: string[]
-  tags: IWebTag[]
+  breadcrumb?: string[]
+  tags?: IWebTag[]
+  img?: string
   rId?: number
   __name__?: string // 搜索原name值
   __desc__?: string
@@ -148,6 +235,7 @@ export interface ISettings {
   actionUrl: string | null
   checkUrl: boolean
   errorUrlCount?: number
+  createWebKey: string
 
   appCardStyle: ICardType
   appDocTitle: string
@@ -197,13 +285,14 @@ export interface ISettings {
   spiderIcon: Spider
   spiderDescription: Spider
   spiderTitle: Spider
+  spiderImg: Spider
   spiderQty: number
   spiderTimeout: number
 
   loadingCode: string
   openSearch: boolean
   gitHubCDN: string
-  components: IComponentProps[]
+  components: IComponentItemProps[]
 
   runtime: number
 

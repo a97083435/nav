@@ -34,14 +34,19 @@
   />
 </picture>
 
+## 设计理念
+
+无数据库、无服务器、零成本一键部署、开箱即用，但又可以像数据库那样操纵数据和保存。
+
+好用、简单、强大。
+
+[谁在使用？](https://official.nav3.cn/?id=3)
+
 ## 特性
-
-三不需：`无需数据库`、`无需服务器`、`无需成本`
-
-`发现导航` 的理念就是做一款无需依赖后端服务既简单又方便，没有繁杂的配置和数据库等配置概念, 做到开箱即用。
 
 - 🍰 内置 `800+` 优质网站
 - 🍰 支持 [码云 Gitee](https://gitee.com/xiejiahe/nav)
+- 🍰 支持 [GitLab](https://gitlab.com/xjh22222228/nav)
 - 🍰 支持从浏览器书签导入
 - 🍰 支持将数据导出到浏览器书签
 - 🍰 支持 AI 翻译
@@ -106,6 +111,10 @@
 #### Vercel 推荐(免费)
 
 [https://github.com/apps/vercel](https://github.com/apps/vercel)
+
+#### Cloudflare pages 推荐(免费)
+
+[https://www.cloudflare.com/zh-cn](https://www.cloudflare.com/zh-cn)
 
 ## 配置说明
 

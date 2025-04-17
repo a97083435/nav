@@ -12,7 +12,14 @@ import type {
   ITagPropValues,
   IWebProps,
 } from '../src/types'
-import { SELF_SYMBOL } from '../src/constants/symbol'
+import { SELF_SYMBOL, DEFAULT_SORT_INDEX } from '../src/constants/symbol'
+import {
+  replaceJsdelivrCDN,
+  removeTrailingSlashes,
+  isNumber,
+} from '../src/utils/pureUtils'
+import fs from 'node:fs'
+import yaml from 'js-yaml'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -28,6 +35,7 @@ export const TAG_ID_NAME3 = 'GitHub'
 export const PATHS = {
   upload: path.resolve('_upload', 'images'),
   db: path.resolve('data', 'db.json'),
+  serverdb: path.resolve('data', 'serverdb.json'),
   settings: path.resolve('data', 'settings.json'),
   tag: path.resolve('data', 'tag.json'),
   search: path.resolve('data', 'search.json'),
@@ -35,6 +43,7 @@ export const PATHS = {
   component: path.resolve('data', 'component.json'),
   internal: path.resolve('data', 'internal.json'),
   config: path.resolve('nav.config.yaml'),
+  configJson: path.resolve('nav.config.json'),
   pkg: path.resolve('package.json'),
   html: {
     index: path.resolve('dist', 'browser', 'index.html'),
@@ -42,6 +51,36 @@ export const PATHS = {
     write: path.resolve('src', 'index.html'),
   },
 } as const
+
+export const getConfig = () => {
+  const pkgJson = JSON.parse(fs.readFileSync(PATHS.pkg).toString())
+  const config = yaml.load(fs.readFileSync(PATHS.config).toString()) as Record<
+    string,
+    any
+  >
+
+  const gitRepoUrl = removeTrailingSlashes(config['gitRepoUrl'] || '').replace(
+    /\.git$/,
+    ''
+  )
+
+  const zorroVersion = pkgJson.dependencies['ng-zorro-antd'].replace(
+    /[^0-9.]/g,
+    ''
+  )
+  return {
+    version: pkgJson.version,
+    zorroDark: `//gcore.jsdelivr.net/npm/ng-zorro-antd@${zorroVersion}/ng-zorro-antd.dark.min.css`,
+    gitRepoUrl,
+    imageRepoUrl: config['imageRepoUrl'],
+    branch: config['branch'],
+    hashMode: config['hashMode'],
+    address: config['address'],
+    email: config['email'],
+    port: config['port'],
+    datetime: dayjs.tz().format('YYYY-MM-DD HH:mm'),
+  } as const
+}
 
 interface WebCountResult {
   userViewCount: number
@@ -154,6 +193,13 @@ export function setWebs(
 ): INavProps[] {
   if (!Array.isArray(nav)) return []
 
+  const tagMap = new Map<number, ITagPropValues>()
+  for (const tag of tags) {
+    if (tag.id) {
+      tagMap.set(tag.id, tag)
+    }
+  }
+
   function handleAdapter(item: any): void {
     delete item.collapsed
     delete item.createdAt
@@ -183,19 +229,8 @@ export function setWebs(
             handleAdapter(navItemItem)
 
             if (navItemItem.nav) {
-              navItemItem.nav.sort((a: any, b: any) => {
-                const aIdx =
-                  a.index == null || a.index === '' ? 100000 : Number(a.index)
-                const bIdx =
-                  b.index == null || b.index === '' ? 100000 : Number(b.index)
-                return aIdx - bIdx
-              })
               for (let l = 0; l < navItemItem.nav.length; l++) {
-                let breadcrumb: string[] = []
                 const webItem = navItemItem.nav[l] as IWebProps
-                breadcrumb.push(item.title, navItem.title, navItemItem.title)
-                breadcrumb = breadcrumb.filter(Boolean)
-                webItem.breadcrumb = breadcrumb
                 webItem.id = incrementWebId(webItem.id)
                 if (webItem.rId) {
                   webItem.rId = incrementWebRId(webItem.rId)
@@ -209,30 +244,71 @@ export function setWebs(
                 webItem.desc ||= ''
                 webItem.icon ||= ''
                 webItem.icon = replaceJsdelivrCDN(webItem.icon, settings)
-                webItem.url = webItem.url.trim()
-                if (webItem.url.endsWith('/')) {
-                  webItem.url = webItem.url.slice(0, -1)
+                if (webItem.img) {
+                  webItem.img = replaceJsdelivrCDN(webItem.img, settings)
                 }
+                webItem.url = removeTrailingSlashes(webItem.url.trim())
                 webItem.name = webItem.name.trim().replace(/<b>|<\/b>/g, '')
                 webItem.desc = webItem.desc.trim().replace(/<b>|<\/b>/g, '')
+
+                // 网站标签和系统标签关联
+                webItem.tags = webItem.tags.filter((item) => {
+                  return tagMap.has(Number(item.id))
+                })
 
                 delete webItem.__desc__
                 delete webItem.__name__
                 delete webItem['extra']
                 delete webItem['createdAt']
-
-                // 节省空间
-                !webItem.top && delete webItem.top
+                delete webItem.breadcrumb
+                if (webItem.tags.length === 0) {
+                  delete webItem.tags
+                }
+                if (!webItem.top) {
+                  delete webItem.top
+                  delete webItem.topTypes
+                }
                 !webItem.ownVisible && delete webItem.ownVisible
                 webItem.index === '' && delete webItem.index
                 ;(webItem.topTypes ?? []).length === 0 &&
                   delete webItem.topTypes
-
-                // 网站标签和系统标签关联
-                webItem.tags = webItem.tags.filter((item) => {
-                  return tags.some((tag) => String(tag.id) === String(item.id))
-                })
               }
+
+              navItemItem.nav.sort((a: any, b: any) => {
+                const aIndexs = []
+                if (isNumber(a.index)) {
+                  aIndexs.push(Number(a.index))
+                } else {
+                  for (const tag of a.tags || []) {
+                    const tagItem = tagMap.get(Number(tag.id))
+                    if (tagItem?.sort != null) {
+                      aIndexs.push(Number(tagItem.sort))
+                    }
+                  }
+                  if (aIndexs.length === 0) {
+                    aIndexs.push(DEFAULT_SORT_INDEX)
+                  }
+                }
+
+                const aIdx = Math.min(...aIndexs)
+                const bIndexs = []
+                if (isNumber(b.index)) {
+                  bIndexs.push(Number(b.index))
+                } else {
+                  for (const tag of b.tags || []) {
+                    const tagItem = tagMap.get(Number(tag.id))
+                    if (tagItem?.sort != null) {
+                      bIndexs.push(Number(tagItem.sort))
+                    }
+                  }
+                  if (bIndexs.length === 0) {
+                    bIndexs.push(DEFAULT_SORT_INDEX)
+                  }
+                }
+
+                const bIdx = Math.min(...bIndexs)
+                return aIdx - bIdx
+              })
             }
           }
         }
@@ -303,7 +379,7 @@ export function writeTemplate({
   <meta name="keywords" content="${settings.keywords}" id="xjh_2" />
   <link rel="icon" href="${settings.favicon}" />
   <link rel ="apple-touch-icon" href="${settings.favicon}" />
-  <link rel="prefetch" href="//unpkg.com/ng-zorro-antd@19.1.0/ng-zorro-antd.dark.min.css" />
+  <link rel="prefetch" href="${getConfig().zorroDark}" />
 `.trim()
   let t = html
   t = t.replace(
@@ -351,18 +427,48 @@ interface WebInfoResponse {
   description?: string
 }
 
-export async function spiderWeb(
+function updateItemField(
+  item: IWebProps,
+  field: keyof IWebProps,
+  value: string | undefined,
+  settingKey: keyof ISettings,
+  settings: ISettings,
+  logMessage: string
+): string {
+  if (settings[settingKey] === 'ALWAYS' && value) {
+    const message = `更新${logMessage}：${correctURL(item.url)}: "${
+      item[field]
+    }" => "${value}"`
+
+    console.log(message)
+    item[field] = value
+    return message
+  } else if (settings[settingKey] === 'EMPTY' && !item[field] && value) {
+    const message = `更新${logMessage}：${correctURL(item.url)}: "${
+      item[field]
+    }" => "${value}"`
+    console.log(message)
+    item[field] = value
+    return message
+  }
+  return ''
+}
+
+export async function spiderWebs(
   db: INavProps[],
-  settings: ISettings
+  settings: ISettings,
+  props?: {
+    onOk?: (messages: string[]) => void
+  }
 ): Promise<SpiderWebResult> {
   let errorUrlCount = 0
+  const { onOk } = props || {}
   const items: IWebProps[] = []
 
-  async function r(nav: any[]): Promise<void> {
+  const collectItems = (nav: any[]) => {
     if (!Array.isArray(nav)) return
 
-    for (let i = 0; i < nav.length; i++) {
-      const item = nav[i]
+    for (const item of nav) {
       if (item.url && item.url[0] !== '!') {
         delete item.ok
         if (
@@ -377,12 +483,12 @@ export async function spiderWeb(
           items.push(item)
         }
       } else {
-        r(item.nav)
+        collectItems(item.nav)
       }
     }
   }
 
-  await r(db)
+  collectItems(db)
 
   const max = settings.spiderQty ?? 20
   const count = Math.ceil(items.length / max)
@@ -396,97 +502,66 @@ export async function spiderWeb(
   }
 
   while (current < count) {
-    const requestPromises: Promise<any>[] = []
-    for (let i = current * max; i < current * max + max; i++) {
-      const item = items[i]
-      if (item) {
-        requestPromises.push(
-          getWebInfo(correctURL(item.url), {
-            timeout: settings.spiderTimeout * 1000,
-          })
-        )
-      }
-    }
+    const requestPromises = items
+      .slice(current * max, current * max + max)
+      .map((item) =>
+        getWebInfo(correctURL(item.url), {
+          timeout: settings.spiderTimeout * 1000,
+        })
+      )
 
     const promises = await Promise.all(requestPromises)
-
+    let messages = []
     for (let i = 0; i < promises.length; i++) {
       const idx = current * max + i
       const item = items[idx]
-      const res = promises[i].value as WebInfoResponse
-      console.log(
-        `${idx}：${
-          res.status ? '正常' : `疑似异常: ${res.errorMsg}`
-        } ${correctURL(item.url)}`
-      )
-      if (settings.checkUrl) {
-        if (!res.status) {
-          errorUrlCount += 1
-          item.ok = false
-        }
+      const res = promises[i] as WebInfoResponse
+
+      const message = `${idx}：${
+        res.status ? '正常' : `疑似异常: ${res.errorMsg}`
+      } ${correctURL(item.url)}`
+
+      console.log(message)
+      messages.push(message)
+
+      if (settings.checkUrl && !res.status) {
+        errorUrlCount += 1
+        item.ok = false
       }
-      if (res.status) {
-        if (settings.spiderIcon === 'ALWAYS' && res.iconUrl) {
-          item.icon = res.iconUrl
-          console.log(
-            `更新图标：${correctURL(item.url)}: "${item.icon}" => "${
-              res.iconUrl
-            }"`
-          )
-        } else if (
-          settings.spiderIcon === 'EMPTY' &&
-          !item.icon &&
-          res.iconUrl
-        ) {
-          item.icon = res.iconUrl
-          console.log(
-            `更新图标：${correctURL(item.url)}: "${item.icon}" => "${
-              res.iconUrl
-            }"`
-          )
-        }
 
-        if (settings.spiderTitle === 'ALWAYS' && res.title) {
-          console.log(
-            `更新标题：${correctURL(item.url)}: "${item['title']}" => "${
-              res.title
-            }"`
+      if (res?.status) {
+        messages.push(
+          updateItemField(
+            item,
+            'icon',
+            res.iconUrl,
+            'spiderIcon',
+            settings,
+            '图标'
+          ),
+          updateItemField(
+            item,
+            'name',
+            res.title,
+            'spiderTitle',
+            settings,
+            '标题'
+          ),
+          updateItemField(
+            item,
+            'desc',
+            res.description,
+            'spiderDescription',
+            settings,
+            '描述'
           )
-          item.name = res.title
-        } else if (
-          settings.spiderTitle === 'EMPTY' &&
-          !item.name &&
-          res.title
-        ) {
-          console.log(
-            `更新标题：${correctURL(item.url)}: "${item['title']}" => "${
-              res.title
-            }"`
-          )
-          item.name = res.title
-        }
-
-        if (settings.spiderDescription === 'ALWAYS' && res.description) {
-          console.log(
-            `更新描述：${correctURL(item.url)}: "${item.desc}" => "${
-              res.description
-            }"`
-          )
-          item.desc = res.description
-        } else if (
-          settings.spiderDescription === 'EMPTY' &&
-          !item.desc &&
-          res.description
-        ) {
-          console.log(
-            `更新描述：${correctURL(item.url)}: "${item.desc}" => "${
-              res.description
-            }"`
-          )
-          item.desc = res.description
-        }
+        )
       }
       console.log('-'.repeat(100))
+    }
+    messages = messages.filter(Boolean)
+    if (messages) {
+      onOk?.(messages)
     }
     current += 1
   }
@@ -501,17 +576,83 @@ export async function spiderWeb(
   }
 }
 
-export function replaceJsdelivrCDN(
-  str: string = '',
-  settings: ISettings
-): string {
-  const cdn = settings?.gitHubCDN
-  if (!cdn) {
-    return str
+export async function fileWriteStream(path: string, data: object | string) {
+  const strings = typeof data === 'string' ? data : JSON.stringify(data)
+  const CHUNK_SIZE = 1024 * 1024
+  const stream1 = fs.createWriteStream(path)
+
+  const stream1Promise = new Promise((resolve, reject) => {
+    stream1.on('finish', () => resolve('file1 written'))
+    stream1.on('error', (err) => reject(err))
+  })
+
+  const writeChunks = (stream: fs.WriteStream, data: string) => {
+    return new Promise<void>((resolve, reject) => {
+      const totalLength = data.length
+      let position = 0
+
+      const writeNextChunk = () => {
+        if (position >= totalLength) {
+          stream.end()
+          resolve()
+          return
+        }
+
+        // 计算当前块的结束位置
+        const end = Math.min(position + CHUNK_SIZE, totalLength)
+        // 提取当前块
+        const chunk = data.slice(position, end)
+
+        // 写入当前块
+        const canContinue = stream.write(chunk, 'utf8')
+        position = end
+
+        // 如果流已满，等待'drain'事件后继续
+        if (!canContinue) {
+          stream.once('drain', writeNextChunk)
+        } else {
+          // 使用setImmediate避免调用栈溢出
+          setImmediate(writeNextChunk)
+        }
+      }
+
+      writeNextChunk()
+
+      stream.on('error', (err) => {
+        reject(err)
+      })
+    })
   }
-  str = str.replace('cdn.jsdelivr.net', cdn)
-  str = str.replace('testingcf.jsdelivr.net', cdn)
-  str = str.replace('img.jsdmirror.com', cdn)
-  str = str.replace('gcore.jsdelivr.net', cdn)
-  return str
+
+  try {
+    await writeChunks(stream1, strings)
+    const results = await stream1Promise
+    return results
+  } catch (err) {
+    stream1.end()
+    console.log(`Failed to write files: ${(err as Error).message}`)
+    return err
+  }
+}
+
+export function fileReadStream(path: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(path)
+    let chunks: any[] = []
+
+    stream.on('data', (chunk) => {
+      chunks.push(chunk)
+    })
+
+    stream.on('end', () => {
+      const fullContent = Buffer.concat(chunks)
+      const data = fullContent.toString('utf8')
+      resolve(data)
+    })
+
+    stream.on('error', (err) => {
+      reject(err)
+      console.error('Error:', err)
+    })
+  })
 }

@@ -1,22 +1,13 @@
 <nz-modal
   [nzWidth]="570"
   [(nzVisible)]="showModal"
-  [nzTitle]="detail ? $t('_edit') : $t('_add')"
+  [nzTitle]="modalTitle"
   (nzOnCancel)="onClose()"
   [nzBodyStyle]="{ maxHeight: '70vh', overflowY: 'auto' }"
   [nzContent]="modalContent"
   [nzFooter]="modalFooter"
 >
   <ng-template #modalContent>
-    <div class="breadcrumb1" *ngIf="detail && detail.breadcrumb">
-      <span *ngFor="let n of detail.breadcrumb; let idx = index"
-        >{{ n }}
-        <span class="arrow" *ngIf="idx !== detail.breadcrumb.length - 1"
-          >/</span
-        ></span
-      >
-    </div>
-
     <form nz-form [formGroup]="validateForm">
       <nz-form-item>
         <nz-form-label [nzSpan]="4" nzRequired>{{
@@ -26,7 +17,7 @@
           <input
             formControlName="url"
             nz-input
-            (blur)="onUrlBlur($event)"
+            (blur)="onUrlBlur()"
             #inputUrl
           />
         </nz-form-control>
@@ -67,7 +58,7 @@
             formControlName="index"
             nz-input
             type="number"
-            placeholder="100000"
+            [placeholder]="DEFAULT_SORT_INDEX"
           />
         </nz-form-control>
       </nz-form-item>
@@ -79,7 +70,8 @@
 
           <nz-checkbox-group
             *ngIf="isTop"
-            formControlName="topOptions"
+            [nzOptions]="topOptions"
+            formControlName="topTypes"
           ></nz-checkbox-group>
         </nz-form-control>
       </nz-form-item>
@@ -91,14 +83,14 @@
         </nz-form-control>
       </nz-form-item>
 
-      <nz-form-item>
+      <nz-form-item *ngIf="isLogin">
         <nz-form-label [nzSpan]="4">{{ $t('_score') }}</nz-form-label>
         <nz-form-control [nzSpan]="20">
           <nz-rate formControlName="rate" nzAllowHalf></nz-rate>
         </nz-form-control>
       </nz-form-item>
 
-      <nz-form-item *ngIf="isLogin">
+      <nz-form-item>
         <nz-form-label [nzSpan]="4">{{ $t('_iconAddr') }}</nz-form-label>
         <nz-form-control [nzSpan]="20">
           <nz-input-group [nzPrefix]="prefixIcon" [nzSuffix]="suffixIconSearch">
@@ -111,39 +103,63 @@
           </nz-input-group>
 
           <ng-template #prefixIcon>
-            <app-logo [src]="iconUrl" [size]="25" *ngIf="iconUrl"></app-logo>
+            <div
+              class="cursor-pointer"
+              (click)="jumpService.goUrl($event, iconUrl)"
+            >
+              <app-logo [src]="iconUrl" [size]="25" *ngIf="iconUrl" />
+            </div>
           </ng-template>
           <ng-template #suffixIconSearch>
-            <i
-              nz-icon
-              nzType="loading"
-              nzTheme="outline"
-              *ngIf="uploading; else loading"
-            ></i>
-            <ng-template #loading>
-              <app-upload (onChange)="onChangeFile($event)"></app-upload>
-            </ng-template>
+            <ng-content *ngIf="isLogin">
+              <app-upload
+                (onChange)="onChangeFile($event, 'icon')"
+              ></app-upload>
+            </ng-content>
           </ng-template>
         </nz-form-control>
       </nz-form-item>
 
-      <nz-form-item *ngIf="!isLogin">
-        <nz-form-label [nzSpan]="4">{{ $t('_iconAddr') }}</nz-form-label>
+      <nz-form-item *ngIf="isLogin">
+        <nz-form-label [nzSpan]="4">{{ $t('_image') }}</nz-form-label>
         <nz-form-control [nzSpan]="20">
-          <nz-input-group [nzPrefix]="prefixIcon">
+          <nz-input-group
+            nzSearch
+            [nzPrefix]="prefixImgIcon"
+            [nzAddOnAfter]="suffixImgButton"
+          >
             <input
-              formControlName="icon"
+              formControlName="img"
               nz-input
-              [readonly]="getting"
-              [placeholder]="getting ? $t('_pendingGet') : ''"
+              [readonly]="submitting"
+              [placeholder]="$t('_imgPlaceholder')"
             />
           </nz-input-group>
 
-          <ng-template #prefixIcon>
-            <app-logo [src]="iconUrl" [size]="25" *ngIf="iconUrl"></app-logo>
+          <ng-template #prefixImgIcon>
+            <div
+              class="cursor-pointer"
+              (click)="jumpService.goUrl($event, imgUrl)"
+            >
+              <app-logo [src]="imgUrl" [size]="25" *ngIf="imgUrl" />
+            </div>
           </ng-template>
         </nz-form-control>
       </nz-form-item>
+      <ng-template #suffixImgButton>
+        <span class="mx-2">
+          <app-upload (onChange)="onChangeFile($event, 'img')"></app-upload>
+        </span>
+        <button
+          [nzLoading]="submitting"
+          nz-button
+          nzType="primary"
+          nzSearch
+          (click)="getScreenshot()"
+        >
+          {{ $t('_screenshot') }}
+        </button>
+      </ng-template>
 
       <nz-form-item>
         <nz-form-label [nzSpan]="4">{{ $t('_webDesc') }}</nz-form-label>
@@ -233,10 +249,10 @@
       {{ $t('_translate') }}
     </button>
     <button
-      *ngIf="parentId !== -1"
       nz-button
       nzType="primary"
       (click)="checkRepeat()"
+      [disabled]="!url"
     >
       <nz-icon nzType="search" />
       {{ $t('_checkRepeat') }}
@@ -245,7 +261,7 @@
       nz-button
       nzType="primary"
       (click)="handleOk()"
-      [nzLoading]="uploading || getting || translating"
+      [nzLoading]="submitting || getting || translating"
     >
       {{ $t('_submit') }}
     </button>

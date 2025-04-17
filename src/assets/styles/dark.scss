@@ -29,7 +29,7 @@
       background-color: #0d1117 !important;
     }
     &-hover {
-      &:hover {
+      &:hover:not(.active) {
         background-color: #21262d !important;
       }
     }
@@ -52,7 +52,7 @@
     }
 
     &-text {
-      color: #6e7681 !important;
+      color: #969ca4 !important;
     }
 
     &-text-active {

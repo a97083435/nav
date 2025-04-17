@@ -12,14 +12,22 @@ import {
 import { CommonModule } from '@angular/common'
 import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { getTextContent, getClassById } from 'src/utils'
-import { getTempId } from 'src/utils/utils'
+import { getTempId, isSelfDevelop } from 'src/utils/utils'
 import { updateByWeb, pushDataByAny } from 'src/utils/web'
 import { FormBuilder, FormGroup, Validators, FormArray } from '@angular/forms'
 import type { IWebProps, IWebTag } from 'src/types'
 import { TopType, ActionType } from 'src/types'
 import { NzMessageService } from 'ng-zorro-antd/message'
 import { NzNotificationService } from 'ng-zorro-antd/notification'
-import { saveUserCollect, getWebInfo, getTranslate } from 'src/api'
+import {
+  saveUserCollect,
+  getWebInfo,
+  getTranslate,
+  getScreenshot,
+  createFile,
+  getImageRepo,
+  getCDN,
+} from 'src/api'
 import { $t } from 'src/locale'
 import { settings, websiteList, tagList, tagMap } from 'src/store'
 import { isLogin, getPermissions } from 'src/utils/user'
@@ -34,7 +42,9 @@ import { UploadComponent } from 'src/components/upload/index.component'
 import { NzIconModule } from 'ng-zorro-antd/icon'
 import { NzButtonModule } from 'ng-zorro-antd/button'
 import { NzSelectModule } from 'ng-zorro-antd/select'
-import { SELF_SYMBOL } from 'src/constants/symbol'
+import { SELF_SYMBOL, DEFAULT_SORT_INDEX } from 'src/constants/symbol'
+import { JumpService } from 'src/services/jump'
+import { removeTrailingSlashes } from 'src/utils/pureUtils'
 import event from 'src/utils/mitt'
 
 @Component({
@@ -67,22 +77,25 @@ export class CreateWebComponent {
   readonly isLogin: boolean = isLogin
   readonly settings = settings
   readonly permissions = getPermissions(settings)
+  readonly DEFAULT_SORT_INDEX = DEFAULT_SORT_INDEX
   validateForm!: FormGroup
   tagList = tagList
-  uploading = false
+  submitting = false
   getting = false
   translating = false
   showModal = false
   detail: IWebProps | null | undefined = null
   isMove = false // 提交完是否可以移动
-  parentId = -1
+  parentId: number = -1
   callback: Function = () => {}
   topOptions = [
-    { label: TopType[1], value: TopType.Side, checked: false },
-    { label: TopType[2], value: TopType.Shortcut, checked: false },
+    { label: TopType[1], value: TopType.Side },
+    { label: TopType[2], value: TopType.Shortcut },
   ]
+  breadcrumb: string[] = []
 
   constructor(
+    public readonly jumpService: JumpService,
     private fb: FormBuilder,
     private message: NzMessageService,
     private notification: NzNotificationService
@@ -101,14 +114,22 @@ export class CreateWebComponent {
       title: ['', [Validators.required]],
       url: ['', [Validators.required]],
       top: [false],
-      topOptions: [this.topOptions],
+      topTypes: [[]],
       ownVisible: [false],
       rate: [5],
       icon: [''],
       desc: [''],
       index: [''],
+      img: [''],
       urlArr: this.fb.array([]),
     })
+  }
+
+  get modalTitle(): string {
+    const breadcrumb = (this.detail?.breadcrumb || this.breadcrumb).join(' / ')
+    return this.detail
+      ? `${$t('_edit')}（${breadcrumb}）`
+      : `${$t('_add')}（${breadcrumb}）`
   }
 
   get urlArray(): FormArray {
@@ -127,22 +148,45 @@ export class CreateWebComponent {
     return (this.validateForm.get('icon')?.value || '').trim()
   }
 
+  get imgUrl(): string {
+    return (this.validateForm.get('img')?.value || '').trim()
+  }
+
   get title(): string {
     return (this.validateForm.get('title')?.value || '').trim()
+  }
+
+  get url(): string {
+    return (this.validateForm.get('url')?.value || '').trim()
   }
 
   open(
     ctx: this,
     props?: {
+      isKeyboard?: boolean
       isMove?: boolean
       parentId?: number
       detail: IWebProps | null | undefined
     }
   ) {
+    if (props?.isKeyboard && this.showModal) {
+      return
+    }
+
     const detail = props?.detail
+    if (!detail) {
+      ctx.parentId = props?.parentId || ctx.parentId
+      if (websiteList.length === 0) return
+      if (ctx.parentId === -1) {
+        const parentId = websiteList[0]?.nav?.[0]?.nav?.[0]?.id
+        if (!parentId) {
+          return
+        }
+        ctx.parentId = parentId
+      }
+    }
     ctx.detail = detail
     ctx.showModal = true
-    ctx.parentId = props?.parentId ?? -1
     ctx.isMove = !!props?.isMove
     this.validateForm.get('title')!.setValue(getTextContent(detail?.name))
     this.validateForm.get('desc')!.setValue(getTextContent(detail?.desc))
@@ -150,8 +194,10 @@ export class CreateWebComponent {
     this.validateForm.get('icon')!.setValue(detail?.icon || '')
     this.validateForm.get('url')!.setValue(detail?.url || '')
     this.validateForm.get('top')!.setValue(detail?.top ?? false)
+    this.validateForm.get('topTypes')!.setValue(detail?.topTypes ?? [])
     this.validateForm.get('ownVisible')!.setValue(detail?.ownVisible ?? false)
     this.validateForm.get('rate')!.setValue(detail?.rate ?? 5)
+    this.validateForm.get('img')!.setValue(detail?.img ?? '')
     if (detail) {
       if (Array.isArray(detail.tags)) {
         detail.tags.forEach((item: IWebTag) => {
@@ -165,17 +211,15 @@ export class CreateWebComponent {
         })
       }
     }
-    const topOptions = this.topOptions.map((item) => {
-      item.checked = false
-      type V = typeof item.value
-      if (detail?.topTypes) {
-        const checked = detail.topTypes.some((value: V) => value === item.value)
-        item.checked = checked
-      }
-      return item
-    })
 
-    this.validateForm.get('topOptions')!.setValue(topOptions)
+    if (detail) {
+      const { parentId } = getClassById(detail.id, 0, true)
+      ctx.parentId = parentId
+    } else {
+      const { breadcrumb } = getClassById(ctx.parentId)
+      ctx.breadcrumb = breadcrumb
+    }
+
     this.focusUrl()
   }
 
@@ -193,18 +237,15 @@ export class CreateWebComponent {
     this.validateForm.get('urlArr').controls = []
     this.validateForm.reset()
     this.showModal = false
-    this.detail = null
-    this.uploading = false
-    this.isMove = false
+    this.submitting = false
     this.callback = Function
   }
 
-  async onUrlBlur(e: any) {
+  async onUrlBlur() {
     if (!settings.openSearch) {
       return
     }
-
-    let url = e.target?.value
+    let url = this.url
     if (!url) {
       return
     }
@@ -253,8 +294,8 @@ export class CreateWebComponent {
     ;(this.validateForm.get('urlArr') as FormArray).removeAt(idx)
   }
 
-  onChangeFile(data: any) {
-    this.validateForm.get('icon')!.setValue(data.cdn)
+  onChangeFile(data: any, key: string) {
+    this.validateForm.get(key)!.setValue(data.cdn)
   }
 
   onSelectChange(idx: number) {
@@ -278,24 +319,44 @@ export class CreateWebComponent {
       })
   }
 
+  getScreenshot() {
+    const url = (this.validateForm.get('url')?.value || '').trim()
+    this.submitting = true
+    getScreenshot({ url })
+      .then((res) => {
+        const path = `${Date.now()}.png`
+        createFile({
+          branch: getImageRepo().branch,
+          message: 'create image',
+          content: res.data.image,
+          isEncode: false,
+          path,
+        })
+          .then((res) => {
+            const value = isSelfDevelop ? res.data.fullImagePath : getCDN(path)
+            this.validateForm.get('img')!.setValue(value)
+          })
+          .finally(() => {
+            this.submitting = false
+          })
+      })
+      .catch(() => {
+        this.submitting = false
+      })
+  }
+
   checkRepeat() {
     try {
-      const { url } = this.validateForm.value
+      const url = removeTrailingSlashes(this.url)
       const { oneIndex, twoIndex, threeIndex, breadcrumb } = getClassById(
         this.parentId
       )
       const w = websiteList[oneIndex].nav[twoIndex].nav[threeIndex].nav
       const repeatData = w.find((item) => {
-        if (item.url === url) {
-          return true
-        }
-        try {
-          const domain = new URL(item.url).host
-          const domain2 = new URL(url).host
-          return domain === domain2
-        } catch {
+        if (this.detail && item.id === this.detail.id) {
           return false
         }
+        return item.url === url || item.url.includes(url)
       })
       if (repeatData) {
         this.notification.error(
@@ -311,7 +372,7 @@ export class CreateWebComponent {
           }
         )
       } else {
-        this.message.success('OK')
+        this.message.success($t('_urlNoRepeat'))
       }
     } catch {}
   }
@@ -323,9 +384,9 @@ export class CreateWebComponent {
     }
 
     const tags: IWebTag[] = []
-    let { title, icon, url, top, ownVisible, rate, desc, index, topOptions } =
-      this.validateForm.value
-    title = title.trim()
+    let { top, ownVisible, rate, index, topTypes } = this.validateForm.value
+    const title = this.title
+    const url = this.url
     if (!title || !url) return
 
     const urlArr = this.urlArray?.value || []
@@ -338,24 +399,20 @@ export class CreateWebComponent {
       }
     })
 
-    type TopTypes = typeof this.topOptions
-    const topTypes: number[] = (topOptions as TopTypes)
-      .filter((item) => item.checked)
-      .map((item) => item.value)
-
     const payload: Record<string, any> = {
       id: this.detail?.id,
       name: title,
       breadcrumb: this.detail?.breadcrumb ?? [],
       rate,
-      desc,
+      desc: this.desc,
       top,
       index,
       ownVisible,
-      icon,
+      icon: this.iconUrl,
       url,
       tags,
       topTypes,
+      img: this.imgUrl || undefined,
     }
 
     if (this.detail) {
@@ -367,7 +424,7 @@ export class CreateWebComponent {
           this.message.error('Update failed')
         }
       } else if (this.permissions.edit) {
-        this.uploading = true
+        this.submitting = true
         const params = {
           data: {
             ...payload,
@@ -382,22 +439,23 @@ export class CreateWebComponent {
     } else {
       payload['id'] = getTempId()
       try {
-        const { breadcrumb } = getClassById(this.parentId)
-        this.uploading = true
+        this.submitting = true
+        payload['breadcrumb'] = this.breadcrumb
         if (this.isLogin) {
           const ok = pushDataByAny(this.parentId, payload)
-          ok && this.message.success($t('_addSuccess'))
-          if (this.isMove) {
-            event.emit('MOVE_WEB', {
-              data: [payload],
-            })
+          if (ok) {
+            this.message.success($t('_addSuccess'))
+            if (this.isMove) {
+              event.emit('MOVE_WEB', {
+                data: [payload],
+              })
+            }
           }
         } else if (this.permissions.create) {
           const params = {
             data: {
               ...payload,
               parentId: this.parentId,
-              breadcrumb,
               extra: {
                 type: ActionType.Create,
               },
