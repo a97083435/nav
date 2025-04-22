@@ -154,7 +154,7 @@ const zhCN: Record<string, any> = {
   _bannerHeight: 'Banner高度',
   _autoPlay: '自动轮播',
   _importBackup: '导入备份',
-  _importBackupTip: '导入后会将当前所有网站数据清空并导入',
+  _importBackupTip: '导入后会将当前所有数据清空并导入',
   _showLanguage: '显示切换语言',
   _showRate: '显示卡片评分',
   _showCopy: '显示卡片复制',
@@ -317,6 +317,10 @@ const zhCN: Record<string, any> = {
   _douban: '豆瓣',
   _zhihu: '知乎',
   _zhihuDaily: '知乎日报',
+  _logoImg: 'Logo图',
+  _logoDarkImg: 'Logo暗黑图',
+  _errLogo: '该LOGO图无法访问',
+  _logoMaxHeight: 'Logo最大高度',
 }
 
 export default zhCN

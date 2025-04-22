@@ -18,6 +18,8 @@ import { NzDropDownModule } from 'ng-zorro-antd/dropdown'
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip'
 import { cleanWebAttrs } from 'src/utils/pureUtils'
 import mitt from 'src/utils/mitt'
+import { fromEvent, Subscription } from 'rxjs'
+import { debounceTime } from 'rxjs/operators'
 
 @Component({
   standalone: true,
@@ -38,10 +40,11 @@ export class FixbarComponent {
   readonly settings = settings
   readonly language = getLocale()
   readonly isLogin = isLogin
+  private scrollSubscription: Subscription | null = null
   isDark: boolean = isDarkFn()
   websiteList = websiteList
-  syncLoading = false
   isShowFace = true
+  isShowTop = false
   entering = false
   open = localStorage.getItem(STORAGE_KEY_MAP.FIXBAR_OPEN) === 'true'
   themeList = [
@@ -110,6 +113,28 @@ export class FixbarComponent {
     }
   }
 
+  onScroll(event: any) {
+    const top = event?.target?.scrollTop || scrollY
+    this.isShowTop = top > 100
+  }
+
+  ngAfterViewInit() {
+    const target = this.selector
+      ? (document.querySelector(this.selector) as HTMLElement)
+      : window
+
+    this.onScroll(target)
+    this.scrollSubscription = fromEvent(target, 'scroll')
+      .pipe(debounceTime(100))
+      .subscribe((event) => this.onScroll(event))
+  }
+
+  ngOnDestroy() {
+    if (this.scrollSubscription) {
+      this.scrollSubscription.unsubscribe()
+    }
+  }
+
   toggleTheme(theme: any) {
     this.router.navigate([theme.url], {
       queryParams: {
@@ -120,18 +145,19 @@ export class FixbarComponent {
   }
 
   goTop() {
+    const config: ScrollToOptions = {
+      top: 0,
+      behavior: 'smooth',
+    }
     if (this.selector) {
       const el = document.querySelector(this.selector)
       if (el) {
-        el.scrollTop = 0
+        el.scrollTo(config)
       }
       return
     }
 
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    })
+    window.scrollTo(config)
   }
 
   collapse() {
@@ -139,6 +165,7 @@ export class FixbarComponent {
   }
 
   toggleMode() {
+    this.handleOpen()
     this.isDark = !this.isDark
     mitt.emit('EVENT_DARK', this.isDark)
     window.localStorage.setItem(
@@ -164,36 +191,25 @@ export class FixbarComponent {
   }
 
   handleSync() {
-    if (this.syncLoading) {
-      this.message.warning($t('_repeatOper'))
-      return
-    }
-
     this.modal.info({
       nzTitle: $t('_syncDataOut'),
       nzOkText: $t('_confirmSync'),
       nzContent: $t('_confirmSyncTip'),
-      nzOnOk: () => {
-        this.syncLoading = true
-
-        updateFileContent({
+      nzOnOk: async () => {
+        await updateFileContent({
           message: 'update db',
           content: JSON.stringify(
             cleanWebAttrs(JSON.parse(JSON.stringify(this.websiteList)))
           ),
           path: DB_PATH,
         })
-          .then(() => {
-            this.message.success($t('_syncSuccessTip'))
-          })
-          .finally(() => {
-            this.syncLoading = false
-          })
+        this.message.success($t('_syncSuccessTip'))
       },
     })
   }
 
   toggleLocale() {
+    this.handleOpen()
     const l = this.language === 'en' ? 'zh-CN' : 'en'
     localStorage.setItem(STORAGE_KEY_MAP.LANGUAGE, l)
     location.reload()

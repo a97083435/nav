@@ -162,7 +162,7 @@ const english: Record<string, any> = {
   _autoPlay: 'Auto play',
   _importBackup: 'Import backup',
   _importBackupTip:
-    'After importing, all current website data will be cleared and imported',
+    'After importing, all current data will be cleared and imported',
   _showLanguage: 'Display switch language',
   _showRate: 'Show rate',
   _showCopy: 'Display Card Copy',
@@ -330,6 +330,10 @@ const english: Record<string, any> = {
   _douban: 'Douban',
   _zhihu: 'Zhihu',
   _zhihuDaily: 'Zhihu Daily',
+  _logoImg: 'Logo Picture',
+  _logoDarkImg: 'Logo Dark Picture',
+  _errLogo: 'The logo image cannot be accessed',
+  _logoMaxHeight: 'Max height',
 }
 
 export default english

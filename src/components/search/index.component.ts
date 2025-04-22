@@ -8,10 +8,11 @@ import {
   getDefaultSearchEngine,
   setDefaultSearchEngine,
   queryString,
+  isDark,
 } from 'src/utils'
 import { Router, ActivatedRoute } from '@angular/router'
-import { searchEngineList } from 'src/store'
-import type { ISearchProps } from 'src/types'
+import { search } from 'src/store'
+import type { ISearchItemProps } from 'src/types'
 import { SearchType } from './index'
 import { $t } from 'src/locale'
 import { NzInputModule } from 'ng-zorro-antd/input'
@@ -37,15 +38,18 @@ import event from 'src/utils/mitt'
 })
 export class SearchComponent {
   @ViewChild('input', { static: false }) input!: ElementRef
-  @Input() size: 'small' | 'default' | 'large' = 'default'
+  @Input() size: 'small' | 'default' | 'large' = 'large'
+  @Input() showLogo = true
 
   readonly $t = $t
   readonly isLogin = isLogin
   readonly SearchType = SearchType
-  readonly searchEngineList: ISearchProps[] = searchEngineList.filter(
+  readonly searchEngineList: ISearchItemProps[] = search.list.filter(
     (item) => !item.blocked
   )
-  currentEngine: ISearchProps = getDefaultSearchEngine()
+  readonly search = search
+  isDark = isDark()
+  currentEngine: ISearchItemProps = getDefaultSearchEngine()
   searchTypeValue = Number(queryString()['type']) || SearchType.All
   keyword = queryString().q
 
@@ -56,6 +60,15 @@ export class SearchComponent {
     if (!this.isLogin && this.searchTypeValue === SearchType.Id) {
       this.searchTypeValue = SearchType.All
     }
+    event.on('EVENT_DARK', (isDark: unknown) => {
+      this.isDark = isDark as boolean
+    })
+  }
+
+  get logoImage() {
+    return this.isDark
+      ? search.darkLogo || search.logo
+      : search.logo || search.darkLogo
   }
 
   private inputFocus() {

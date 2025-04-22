@@ -3,7 +3,13 @@
 // See https://github.com/xjh22222228/nav
 
 import config from '../../nav.config.json'
-import http, { httpNav, getDefaultRequestData, getAddress } from '../utils/http'
+import type { AxiosRequestConfig } from 'axios'
+import http, {
+  httpNav,
+  getDefaultRequestData,
+  getAddress,
+  getImageBaseUrl,
+} from '../utils/http'
 import qs from 'qs'
 import { encode } from 'js-base64'
 import {
@@ -11,13 +17,13 @@ import {
   websiteList,
   tagList,
   getTagMap,
-  searchEngineList,
+  search,
   internal,
   component,
 } from 'src/store'
 import type { ISettings } from 'src/types'
 import { isSelfDevelop } from 'src/utils/utils'
-import { isLogin } from 'src/utils/user'
+import { isLogin, getImageToken } from 'src/utils/user'
 import { DB_PATH } from 'src/constants'
 import {
   getIsGitee,
@@ -35,12 +41,14 @@ export const authorName = s.at(-2)
 export const repoName = s.at(-1)
 
 export function getImageRepo() {
+  let owner = authorName
   let repo = repoName
   let branch = 'image'
   let projectId = getLabProjectId()
   if (imageRepoUrl) {
     const split = imageRepoUrl.split('?')
     repo = split[0].split('/').at(-1) || ''
+    owner = split[0].split('/').at(-2) || ''
     const query = qs.parse(split.at(-1) || '')
     if (query['branch']) {
       branch = query['branch'] as string
@@ -49,11 +57,22 @@ export function getImageRepo() {
       projectId = query['projectId'] as string
     }
   }
-  return {
-    repo,
-    branch,
-    projectId,
-  } as const
+  return { owner, repo, branch, projectId } as const
+}
+
+export function isStandaloneImage(): boolean {
+  if (config.imageRepoUrl) {
+    try {
+      const { host: imgHost } = new URL(config.imageRepoUrl)
+      const { host } = new URL(config.gitRepoUrl)
+      if (imgHost !== host) {
+        return true
+      }
+    } catch (error) {
+      console.log(error)
+    }
+  }
+  return false
 }
 
 function getLabProjectId() {
@@ -64,9 +83,14 @@ function getLabProjectId() {
 const isGitee = getIsGitee(config.gitRepoUrl)
 const isGitLab = getIsGitLab(config.gitRepoUrl)
 
-export function verifyToken(token: string) {
+export function verifyToken(token: string, imageRepoUrl?: string) {
+  let baseURL
   const url = isSelfDevelop ? '/api/users/verify' : `/user`
+  if (imageRepoUrl) {
+    baseURL = getImageBaseUrl()
+  }
   return http.get(url, {
+    baseURL,
     headers: {
       Authorization: `${isGitLab ? 'Bearer' : 'token'} ${token.trim()}`,
     },
@@ -79,14 +103,12 @@ export function getContentes() {
     .post('/api/contents/get', getDefaultRequestData())
     .then((res: any) => {
       websiteList.splice(0, websiteList.length)
-      searchEngineList.splice(0, searchEngineList.length)
       tagList.splice(0, tagList.length)
 
       internal.loginViewCount = res.data.internal.loginViewCount
       internal.userViewCount = res.data.internal.userViewCount
       websiteList.push(...res.data.webs)
       tagList.push(...res.data.tags)
-      searchEngineList.push(...res.data.search)
       const resSettings = res.data.settings as ISettings
       for (const k in resSettings) {
         // @ts-ignore
@@ -95,6 +117,10 @@ export function getContentes() {
       for (const k in res.data.component) {
         // @ts-ignore
         component[k] = res.data.component[k]
+      }
+      for (const k in res.data.search) {
+        // @ts-ignore
+        search[k] = res.data.search[k]
       }
       getTagMap()
       event.emit('WEB_REFRESH')
@@ -224,7 +250,7 @@ export function getCommits() {
   return http.get(`/repos/${authorName}/${repoName}/commits`)
 }
 
-export async function createFile({
+export async function createImageFile({
   message,
   content,
   path,
@@ -243,24 +269,39 @@ export async function createFile({
       })
   }
 
-  const method = isGitee || isGitLab ? http.post : http.put
-  const url = isGitLab
+  const axiosConfig: AxiosRequestConfig = {}
+  let _isGitee = isGitee
+  let _isGItLab = isGitLab
+  // image api
+  if (isStandaloneImage()) {
+    _isGitee = getIsGitee(config.imageRepoUrl)
+    _isGItLab = getIsGitLab(config.imageRepoUrl)
+    axiosConfig['baseURL'] = getImageBaseUrl()
+    axiosConfig['headers'] = {
+      Authorization: `${
+        getIsGitLab(config.imageRepoUrl) ? 'Bearer' : 'token'
+      } ${getImageToken()}`,
+    }
+  }
+
+  const method = _isGitee || _isGItLab ? http.post : http.put
+  const url = _isGItLab
     ? `/projects/${
         getImageRepo().projectId
       }/repository/files/${encodeURIComponent(path)}`
-    : `/repos/${authorName}/${getImageRepo().repo}/contents/${path}`
+    : `/repos/${getImageRepo().owner}/${getImageRepo().repo}/contents/${path}`
   const params: Record<string, any> = {
     branch,
     content: isEncode ? encode(content) : content,
   }
   const commitMessage = `rebot(CI): ${message}`
-  if (isGitLab) {
+  if (_isGItLab) {
     params['commit_message'] = commitMessage
     params['encoding'] = 'base64'
   } else {
     params['message'] = commitMessage
   }
-  return method(url, params).then((res) => {
+  return method(url, params, axiosConfig).then((res) => {
     requestActionUrl()
     return res
   })
@@ -366,14 +407,21 @@ export function getNews(data: Record<string, any> = {}) {
 }
 
 export function getCDN(path: string) {
+  let _isGitee = isGitee
+  let _isGItLab = isGitLab
   const branch = getImageRepo().branch
   const repo = getImageRepo().repo
-  if (isGitee) {
-    return `https://gitee.com/${authorName}/${repo}/raw/${branch}/${path}`
-  } else if (isGitLab) {
-    return `https://gitlab.com/${authorName}/${repo}/-/raw/${branch}/${path}?ref_type=heads`
+  const owner = getImageRepo().owner
+  if (isStandaloneImage()) {
+    _isGitee = getIsGitee(config.imageRepoUrl)
+    _isGItLab = getIsGitLab(config.imageRepoUrl)
   }
-  return `https://${settings.gitHubCDN}/gh/${authorName}/${repo}@${branch}/${path}`
+  if (_isGitee) {
+    return `https://gitee.com/${owner}/${repo}/raw/${branch}/${path}`
+  } else if (_isGItLab) {
+    return `https://gitlab.com/${owner}/${repo}/-/raw/${branch}/${path}?ref_type=heads`
+  }
+  return `https://${settings.gitHubCDN}/gh/${owner}/${repo}@${branch}/${path}`
 }
 
 function requestActionUrl() {
